@@ -334,3 +334,120 @@ python src/evaluate.py
 - **Não altere os datasets de avaliação** - apenas os prompts em `prompts/bug_to_user_story_v2.yml`
 - **Itere, itere, itere** - é normal precisar de 3-5 iterações para atingir 0.8 em todas as métricas
 - **Documente seu processo** - a jornada de otimização é tão importante quanto o resultado final
+
+
+
+
+# Otimização de Prompts
+
+## A) Técnicas Aplicadas (Fase 2)
+
+Para refatorar o prompt `bug_to_user_story` (v1 → v2) foram aplicadas **três técnicas**: a obrigatória (Few-shot Learning) e duas adicionais (Role Prompting e Skeleton of Thought).
+
+O modelo gerador é o `gpt-4o-mini` (modelo pequeno) e o avaliador é o `gpt-4o`. Essa combinação guiou boa parte das escolhas.
+
+### 1. Few-shot Learning (obrigatória)
+
+**Por que:** com um modelo pequeno como o `gpt-4o-mini`, exemplos concretos ensinam o formato-alvo muito melhor do que regras abstratas, o modelo copia o padrão que enxerga. Foi a técnica que mais moveu o resultado.
+
+**Como aplicamos:** incluímos exemplos representativos por nível de complexidade (bug simples,bug médio e bug complexo com múltiplos problemas).
+
+```
+EX SIMPLES
+Relato: "As fotos dos produtos não carregam no Edge, mas no Chrome funcionam."
+Como um cliente usando o Edge, eu quero visualizar as fotos dos produtos, para que eu possa avaliar os itens antes de comprar.
+
+Critérios de Aceitação:
+- Dado que estou navegando no Edge
+- Quando acesso a página de um produto
+- Então as fotos do produto devem carregar corretamente
+- E devem ter a mesma qualidade que em outros navegadores
+- E o tempo de carregamento deve ser similar
+```
+
+### 2. Role Prompting
+
+**Por que:** definir a persona e um objetivo de comportamento explícito ancora o tom e a **contenção** (não inventar, ficar focado no relato).
+
+**Como aplicamos:** a primeira linha do system prompt define papel + objetivo.
+
+```
+Você é um Product Owner que transforma relatos de bug em User Stories.
+Seu objetivo é ficar o mais próximo possível de uma resposta de referência:
+fundamentada no relato, focada e sem inventar nada.
+```
+
+### 3. Skeleton of Thought
+
+**Por que:** em vez de deixar o modelo "pensar livremente", damos um **esqueleto de saída fixo**. O modelo apenas preenche o gabarito.
+
+**Como aplicamos:** roteamento por complexidade + estrutura obrigatória de cada seção.
+
+```
+# DECIDA O NÍVEL DO BUG
+- SIMPLES: um problema, sem artefato técnico -> história + critérios.
+- MÉDIO:   um problema COM artefato técnico  -> história + critérios + Contexto Técnico.
+- COMPLEXO: vários problemas distintos        -> história + critérios por letra (A, B, C...)
+             + Contexto Técnico + Contexto do Bug + Tasks Técnicas Sugeridas.
+
+# HISTÓRIA (linha 1, sem rótulo)
+Como um [papel], eu quero [comportamento CORRETO], para que [valor].
+
+# CRITÉRIOS
+Critérios de Aceitação:
+- Dado que ...
+- Quando ...
+- Então ...
+- E ...
+- E ...
+```
+
+---
+
+## B) Resultados Finais
+
+### Link público do dashboard
+
+- **LangSmith (dashboard/experimento):** https://smith.langchain.com/o/894fa92f-0be8-4700-95dd-3fd12dc8b203/dashboards/projects/96b5831d-baf0-4b9c-b373-a9cabe006397
+
+### Resultado da avaliação (v2 — APROVADO)
+
+Todas as 5 métricas ≥ 0.8 e média geral **0.8376**.
+
+| Métrica       | Nota v2 | Status |
+|---------------|:-------:|:------:|
+| Helpfulness   | 0.85    | ✓      |
+| Correctness   | 0.82    | ✓      |
+| F1-Score      | 0.81    | ✓      |
+| Clarity       | 0.87    | ✓      |
+| Precision     | 0.84    | ✓      |
+| **Média geral** | **0.8376** | ✅ **APROVADO** |
+
+### Tabela comparativa: v1 (inicial) vs v2 (otimizado)
+
+| Métrica       | v1 (inicial) | v2 (otimizado) |
+|---------------|:------------:|:--------------:|
+| Helpfulness   | 0.45  | 0.85 |
+| Correctness   | 0.52  | 0.82 |
+| F1-Score      | 0.48  | 0.81 |
+| Clarity       | 0.50  | 0.87 |
+| Precision     | 0.46  | 0.84 |
+| **Status**    | ❌ REPROVADO | ✅ APROVADO |
+
+### Evolução das iterações do v2
+
+O v2 não passou de primeira — foram várias iterações guiadas pela métrica até cruzar 0.80 em todas:
+
+| Iteração | Mudança principal                                              | Média geral |
+|:--------:|----------------------------------------------------------------|:-----------:|
+|    1     | Few-shot + Role Prompting (prompt longo, muitas regras)        | 0.7580      |
+|    2     | Enxugado para o modelo pequeno                                 | 0.7641      |
+|    3     | Roteamento por complexidade + regra correta de valores técnicos| 0.8131      |
+|    4     | Exemplos few-shot ajustados (navegador e métrica)              | **0.8376** ✅ |
+
+Imagens:
+
+![Texto Alternativo](img.png)
+![Texto Alternativo](img_2.png)
+![Texto Alternativo](img_1.png)
+![Texto Alternativo](img_3.png)
